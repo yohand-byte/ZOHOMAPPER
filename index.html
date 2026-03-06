@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ZOHOMAPPER v3 — API Field Mapper</title>
+<title>ZOHOMAPPER v4</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗺️</text></svg>">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
@@ -14,299 +14,259 @@
 <div id="root"></div>
 <script type="text/babel">
 const{useState}=React;
-const ORG="20092765539",DOMAIN="zohoapis.eu",BASE=`https://www.${DOMAIN}`;
-
-const contactFields=[
+const O="20092765539",D="zohoapis.eu",B=`https://www.${D}`;
+const CF=[
 {section:"Identité",icon:"🏢",fields:[
-{ui:"Type de client",uiVal:"Entreprise / Individuel",api:"contact_type",val:'"customer"',type:"string",note:'"customer" ou "vendor"',req:true},
-{ui:"Sous-type",uiVal:"Business",api:"customer_sub_type",val:'"business"',type:"string",note:'"business" ou "individual"'},
-{ui:"Nom d'affichage *",uiVal:"Ex: Dullnig Elektro GmbH",api:"contact_name",val:'"Dullnig Elektro..."',type:"string",note:"REQUIS. Nom principal pour recherche/affichage. Max 200 chars.",req:true},
-{ui:"Nom de la société",uiVal:"Ex: Dullnig Elektro GmbH",api:"company_name",val:'"Dullnig Elektro..."',type:"string",note:"Nom légal. Max 200 chars."},
-{ui:"Numéro du client",uiVal:"CUS-XXXXXX",api:"contact_number",val:'"CUS-566854"',type:"string",note:"Auto-généré si vide. Sinon: ignore_auto_number_generation=true"},
+{ui:"Type de client",uiVal:"Entreprise",api:"contact_type",val:'"customer"',type:"string",note:'"customer" ou "vendor"',req:true},
+{ui:"Sous-type",uiVal:"Business",api:"customer_sub_type",val:'"business"',type:"string"},
+{ui:"Nom d'affichage *",uiVal:"Dullnig Elektro GmbH",api:"contact_name",val:'"Dullnig..."',type:"string",note:"REQUIS. Max 200.",req:true},
+{ui:"Nom de la société",uiVal:"Dullnig Elektro GmbH",api:"company_name",val:'"Dullnig..."',type:"string"},
+{ui:"Numéro du client",uiVal:"CUS-XXXXXX",api:"contact_number",val:'"CUS-566854"',type:"string",note:"Auto si vide"},
 ]},
-{section:"Contact principal",icon:"👤",fields:[
-{ui:"Civilité (dropdown)",uiVal:"M. / Mme / Dr",api:"contact_persons[0].salutation",val:'"Mr"',type:"string",note:'"Mr","Mrs","Ms","Miss","Dr"',dd:true},
+{section:"Contact",icon:"👤",fields:[
+{ui:"Civilité",uiVal:"M./Mme",api:"contact_persons[0].salutation",val:'"Mr"',type:"string",dd:true},
 {ui:"Prénom",uiVal:"Harald",api:"contact_persons[0].first_name",val:'"Harald"',type:"string"},
 {ui:"Nom",uiVal:"Dullnig",api:"contact_persons[0].last_name",val:'"Dullnig"',type:"string"},
 {ui:"E-mail",uiVal:"elektro@dullnig.at",api:"contact_persons[0].email",val:'"elektro@dullnig.at"',type:"string"},
-{ui:"Téléphone",uiVal:"+43 676 842 941 210",api:"contact_persons[0].phone",val:'"+43676842941210"',type:"string",note:"Format libre, inclure indicatif"},
-{ui:"Mobile",uiVal:"+43 676 842 941 210",api:"contact_persons[0].mobile",val:'"+43676842941210"',type:"string"},
-{ui:"Contact principal?",uiVal:"Oui",api:"contact_persons[0].is_primary_contact",val:"true",type:"boolean"},
+{ui:"Téléphone",uiVal:"+43...",api:"contact_persons[0].phone",val:'"+43676842941210"',type:"string"},
+{ui:"Mobile",uiVal:"+43...",api:"contact_persons[0].mobile",val:'"+43676842941210"',type:"string"},
+{ui:"Principal?",uiVal:"Oui",api:"contact_persons[0].is_primary_contact",val:"true",type:"boolean"},
 ]},
-{section:"Langue & Devise",icon:"🌍",fields:[
-{ui:"Customer Language (dropdown)",uiVal:"français",api:"language_code",val:'"fr"',type:"string",note:'"de","en","es","fr","it","ja","nl","pt","pt_br","sv","zh","en_gb"',dd:true},
-{ui:"Devise par défaut * (dropdown)",uiVal:"EUR - Euro",api:"currency_id",val:'"441540000000000071"',type:"ID",note:"GET /settings/currencies. Ton EUR = 441540000000000071",req:true,dd:true},
+{section:"Langue/Devise",icon:"🌍",fields:[
+{ui:"Langue",uiVal:"français",api:"language_code",val:'"fr"',type:"string",dd:true},
+{ui:"Devise *",uiVal:"EUR",api:"currency_id",val:'"441540000000000071"',type:"ID",req:true,dd:true},
 ]},
 {section:"Fiscalité",icon:"🏛️",fields:[
-{ui:"N° identification fiscale - Type (dropdown TAX)",uiVal:"TAX",api:"tax_reg_label",val:'"TAX"',type:"string",note:'Le dropdown UI "TAX/SSN/..." = tax_reg_label en API. Testé et confirmé sur édition EU. tax_id_type est US-only et rejeté (erreur 2) sur .eu',dd:true,hl:true,fix:true},
-{ui:"N° identification fiscale - Valeur",uiVal:"PT263757994 / ATU68695405",api:"tax_reg_no",val:'"ATU68695405"',type:"string",note:"Le numéro NIF/VAT. tax_id_value est US-only, ignoré sur .eu. Utiliser tax_reg_no.",hl:true,fix:true},
-{ui:"Tax Rate (dropdown)",uiVal:"T.V.A 0,00% [0%]",api:"tax_id",val:'"441540000000359714"',type:"ID",note:"PAS un %. C'est l'ID Zoho. GET /settings/taxes. Ta TVA 0% = 441540000000359714",dd:true,hl:true},
-{ui:"Is Taxable (implicite)",uiVal:"Oui (si taxe assignée)",api:"is_taxable",val:"true",type:"boolean",note:"Doit être true pour que tax_id fonctionne"},
-{ui:"Tax Treatment",uiVal:"(selon édition)",api:"tax_treatment",val:"(ignoré sur EU)",type:"string",note:'Champ UK/GCC only. Sur édition EU: ignoré silencieusement. Ne pas envoyer.',warn:true},
-{ui:"Tax Reg No (VAT)",uiVal:"ATU68695405",api:"tax_reg_no",val:'"ATU68695405"',type:"string",note:"N° TVA intracommunautaire. Aussi stocké dans tax_info_list[0].tax_registration_no"},
-{ui:"TDS",uiVal:"Non activé",api:"is_tds_registered",val:"false",type:"boolean"},
+{ui:"Dropdown TAX",uiVal:"TAX",api:"tax_reg_label",val:'"TAX"',type:"string",note:"Remplit le dropdown UI. Testé EU.",dd:true,fix:true},
+{ui:"N° fiscal",uiVal:"ATU68695405",api:"tax_reg_no",val:'"ATU68695405"',type:"string",fix:true},
+{ui:"Tax Rate",uiVal:"T.V.A 0%",api:"tax_id",val:'"441540000000359714"',type:"ID",dd:true,hl:true},
+{ui:"Is Taxable",uiVal:"Oui",api:"is_taxable",val:"true",type:"boolean"},
+{ui:"Tax Treatment",uiVal:"—",api:"tax_treatment",val:"ignoré EU",type:"—",warn:true},
 ]},
 {section:"Conditions",icon:"💶",fields:[
-{ui:"Conditions de paiement (dropdown)",uiVal:"A la commande",api:"payment_terms",val:"0",type:"number",note:"Jours. 0='A la commande'. -2=fin de mois. -3=fin mois suivant. 15=Net 15.",dd:true,hl:true},
-{ui:"Label conditions paiement",uiVal:"A la commande",api:"payment_terms_label",val:'"A la commande"',type:"string"},
-{ui:"Limite de crédit",uiVal:"(vide = 0)",api:"credit_limit",val:"0",type:"number"},
-{ui:"Liste des prix (dropdown)",uiVal:"(vide)",api:"price_list_id",val:'""',type:"ID",dd:true},
+{ui:"Paiement",uiVal:"A la commande",api:"payment_terms",val:"0",type:"number",note:"0=commande. -2=fin mois.",dd:true},
+{ui:"Label",uiVal:"A la commande",api:"payment_terms_label",val:'"A la commande"',type:"string"},
+{ui:"Limite crédit",uiVal:"0",api:"credit_limit",val:"0",type:"number"},
+{ui:"Comptes débiteurs",uiVal:"Comptes clients",api:"account_id",val:'"441540000000000352"',type:"ID",note:"Dropdown UI. Comptes clients = 441540000000000352. OBLIGATOIRE sinon reste vide.",dd:true,fix:true},
 ]},
 {section:"Adresses",icon:"📍",fields:[
-{ui:"Fact. - Attention",uiVal:"Nom société",api:"billing_address.attention",val:'"Dullnig Elektro..."',type:"string"},
-{ui:"Fact. - Rue",uiVal:"Franz Dullnig Gasse 2",api:"billing_address.address",val:'"Franz Dullnig Gasse 2"',type:"string"},
-{ui:"Fact. - Rue 2",uiVal:"",api:"billing_address.street2",val:'""',type:"string"},
-{ui:"Fact. - Ville",uiVal:"Klagenfurt",api:"billing_address.city",val:'"Klagenfurt am Woerthersee"',type:"string"},
-{ui:"Fact. - Code postal",uiVal:"9020",api:"billing_address.zip",val:'"9020"',type:"string"},
-{ui:"Fact. - Pays",uiVal:"Austria",api:"billing_address.country",val:'"Austria"',type:"string"},
-{ui:"Fact. - Code pays",uiVal:"AT",api:"billing_address.country_code",val:'"AT"',type:"string",note:"ISO 2 lettres"},
-{ui:"Fact. - Tél",uiVal:"+43...",api:"billing_address.phone",val:'"+43676842941210"',type:"string"},
-{ui:"Livr. - Attention",uiVal:"Harald Dullnig",api:"shipping_address.attention",val:'"Harald Dullnig"',type:"string"},
-{ui:"Livr. - Rue",uiVal:"Franz-Dullnig-Gasse 2",api:"shipping_address.address",val:'"Franz-Dullnig-Gasse 2"',type:"string"},
-{ui:"Livr. - Ville",uiVal:"Klagenfurt",api:"shipping_address.city",val:'"Klagenfurt am Woerthersee"',type:"string"},
-{ui:"Livr. - Code postal",uiVal:"9020",api:"shipping_address.zip",val:'"9020"',type:"string"},
-{ui:"Livr. - Pays",uiVal:"Austria",api:"shipping_address.country",val:'"Austria"',type:"string"},
-{ui:"Livr. - Code pays",uiVal:"AT",api:"shipping_address.country_code",val:'"AT"',type:"string"},
-{ui:"Livr. - Tél",uiVal:"+43...",api:"shipping_address.phone",val:'"+43676842941210"',type:"string"},
-]},
-{section:"Divers",icon:"📋",fields:[
-{ui:"Comptes débiteurs",uiVal:"Comptes clients",api:"(org-level)",val:"—",type:"—",note:"Config organisation, pas sur le contact"},
-{ui:"Code localisation",uiVal:"(vide)",api:"location_id",val:'""',type:"ID"},
-{ui:"ID de la société",uiVal:"(vide)",api:"company_id",val:'""',type:"string"},
-{ui:"Prélèvement auto",uiVal:"Non",api:"(portal config)",val:"—",type:"—",note:"Via portail client uniquement"},
-{ui:"Remarques",uiVal:"(texte libre)",api:"notes",val:'""',type:"string"},
-{ui:"Custom: Client ID",uiVal:"QW132XXX",api:"cf_client_id",val:'"QW132XXX"',type:"string",note:"Auto-number. field_id: 441540000000297431"},
+{ui:"Fact. Attention",uiVal:"Société",api:"billing_address.attention",val:'"..."',type:"string"},
+{ui:"Fact. Rue",uiVal:"...",api:"billing_address.address",val:'"..."',type:"string"},
+{ui:"Fact. Ville",uiVal:"...",api:"billing_address.city",val:'"..."',type:"string"},
+{ui:"Fact. CP",uiVal:"9020",api:"billing_address.zip",val:'"9020"',type:"string"},
+{ui:"Fact. Pays",uiVal:"Austria",api:"billing_address.country",val:'"Austria"',type:"string"},
+{ui:"Fact. Code",uiVal:"AT",api:"billing_address.country_code",val:'"AT"',type:"string"},
+{ui:"Livr. (même structure)",uiVal:"...",api:"shipping_address.*",val:"idem",type:"object"},
 ]},
 ];
 
-const salesOrderFields=[
+const SO=[
 {section:"En-tête",icon:"📄",fields:[
-{ui:"Client * (dropdown)",uiVal:"SASU LABOGILE",api:"customer_id",val:'"441540000008937057"',type:"ID",note:"REQUIS. GET /contacts pour trouver.",req:true,dd:true},
-{ui:"N° commande",uiVal:"CC-014291",api:"salesorder_number",val:'"CC-014291"',type:"string",note:"Auto si vide. Sinon: ignore_auto_number_generation=true"},
-{ui:"Référence",uiVal:"Transaction #OpvCvNxi",api:"reference_number",val:'"Transaction #OpvCvNxi"',type:"string"},
-{ui:"Date commande *",uiVal:"2026-03-05",api:"date",val:'"2026-03-05"',type:"string",note:"REQUIS. YYYY-MM-DD",req:true},
-{ui:"Date expédition",uiVal:"2026-03-05",api:"shipment_date",val:'"2026-03-05"',type:"string",note:"YYYY-MM-DD"},
-{ui:"Date livraison",uiVal:"",api:"delivery_date",val:'""',type:"string"},
+{ui:"Client *",uiVal:"SASU LABOGILE",api:"customer_id",val:'"441540000008937057"',type:"ID",note:"REQUIS. GET /contacts",req:true,dd:true},
+{ui:"Devise",uiVal:"EUR",api:"currency_id",val:'"441540000000000071"',type:"ID",dd:true},
+{ui:"N° commande",uiVal:"CC-014291",api:"salesorder_number",val:'"CC-014291"',type:"string"},
+{ui:"N° référence",uiVal:"Transaction #OpvCvNxi",api:"reference_number",val:'"Transaction #..."',type:"string"},
+{ui:"Date *",uiVal:"05/03/2026",api:"date",val:'"2026-03-05"',type:"string",note:"YYYY-MM-DD",req:true},
+{ui:"Date expédition",uiVal:"05/03/2026",api:"shipment_date",val:'"2026-03-05"',type:"string"},
+{ui:"Paiement",uiVal:"À la commande",api:"payment_terms",val:"0",type:"number",dd:true},
+{ui:"Mode livraison",uiVal:"Sun-store.delivery",api:"delivery_method",val:'"Sun-store.delivery"',type:"string",dd:true},
+{ui:"Vendeur",uiVal:"SUN.STORE",api:"salesperson_name",val:'"SUN.STORE"',type:"string",note:'"SUN.STORE","Qualiwatt","SOLARTRADERS"',dd:true},
+{ui:"Source of Supply",uiVal:"Île-de-France",api:"source_of_supply",val:'"Île-de-France"',type:"string",dd:true},
+{ui:"Agence",uiVal:"Siège social",api:"location_id",val:'"441540000000042009"',type:"ID"},
 ]},
-{section:"Lignes de commande",icon:"🛒",fields:[
-{ui:"Article * (dropdown)",uiVal:"Onduleur Huawei",api:"line_items[].item_id",val:'"<item_id>"',type:"ID",note:"REQUIS. GET /items pour trouver.",req:true,dd:true,hl:true},
-{ui:"Nom article",uiVal:"Onduleur hybride...",api:"line_items[].name",val:'"Onduleur hybride..."',type:"string",note:"Auto-rempli si item_id fourni"},
-{ui:"SKU",uiVal:"HUA/SUN2000-10K-LC0",api:"line_items[].sku",val:'"HUA/SUN2000-10K-LC0"',type:"string",note:"Read-only, vient de l'item"},
-{ui:"Description",uiVal:"(texte libre)",api:"line_items[].description",val:'""',type:"string"},
-{ui:"Quantité *",uiVal:"1",api:"line_items[].quantity",val:"1",type:"number",note:"REQUIS",req:true,hl:true},
-{ui:"Prix unitaire *",uiVal:"1041.00",api:"line_items[].rate",val:"1041.00",type:"number",note:"REQUIS. Prix HT unitaire",req:true,hl:true},
-{ui:"Remise",uiVal:"0",api:"line_items[].discount",val:"0",type:"number/string",note:'Montant fixe ou % (ex: "12.5%")'},
-{ui:"Taxe article (dropdown)",uiVal:"T.V.A 20%",api:"line_items[].tax_id",val:'"<tax_id>"',type:"ID",note:"ID taxe. GET /settings/taxes",dd:true,hl:true},
-{ui:"Unité",uiVal:"qty / pcs / kg",api:"line_items[].unit",val:'"qty"',type:"string"},
+{section:"Lignes",icon:"🛒",fields:[
+{ui:"Article *",uiVal:"Onduleur Huawei",api:"line_items[].item_id",val:'"441540000004521271"',type:"ID",note:"REQUIS. GET /items",req:true,dd:true,hl:true},
+{ui:"Nom",uiVal:"(auto si item_id)",api:"line_items[].name",val:'"auto"',type:"string"},
+{ui:"SKU",uiVal:"HUA/SUN2000-10K-LC0",api:"line_items[].sku",val:'"read-only"',type:"string"},
+{ui:"Quantité *",uiVal:"1",api:"line_items[].quantity",val:"1",type:"number",req:true,hl:true},
+{ui:"Taux HT *",uiVal:"1041",api:"line_items[].rate",val:"1041.00",type:"number",req:true,hl:true},
+{ui:"Remise",uiVal:"0 %",api:"line_items[].discount",val:'"0%"',type:"string"},
+{ui:"Taxe",uiVal:"FR TVA [20%]",api:"line_items[].tax_id",val:'"441540000005831077"',type:"ID",note:"FR TVA 20%",dd:true,hl:true},
+{ui:"Entrepôt",uiVal:"QW/LOGISTIC 26",api:"line_items[].warehouse_id",val:'"441540000004548548"',type:"ID",note:"Par article",dd:true,hl:true},
+{ui:"Unité",uiVal:"pcs",api:"line_items[].unit",val:'"pcs"',type:"string"},
 ]},
-{section:"Taxes & Remises",icon:"🧾",fields:[
-{ui:"Type remise (dropdown)",uiVal:"Au niveau article / Global",api:"discount_type",val:'"item_level"',type:"string",note:'"item_level" ou "entity_level"',dd:true},
-{ui:"Remise globale",uiVal:"0",api:"discount",val:"0",type:"number/string",note:"Si discount_type='entity_level'"},
-{ui:"Remise avant taxe?",uiVal:"Oui",api:"is_discount_before_tax",val:"true",type:"boolean"},
-{ui:"Prix TTC?",uiVal:"Non",api:"is_inclusive_tax",val:"false",type:"boolean",note:"true = prix incluent la taxe"},
-{ui:"Frais de port",uiVal:"0",api:"shipping_charge",val:"0",type:"number",note:"Ou line_item séparé (TRANSP_0-15)"},
-{ui:"Ajustement",uiVal:"0",api:"adjustment",val:"0",type:"number",note:"Arrondi, ajustement final"},
-{ui:"Description ajustement",uiVal:"",api:"adjustment_description",val:'""',type:"string"},
+{section:"Taxes/Remises",icon:"🧾",fields:[
+{ui:"Type remise",uiVal:"item_level",api:"discount_type",val:'"item_level"',type:"string",dd:true},
+{ui:"Avant taxe?",uiVal:"Oui",api:"is_discount_before_tax",val:"true",type:"boolean"},
+{ui:"Prix TTC?",uiVal:"Non",api:"is_inclusive_tax",val:"false",type:"boolean"},
+{ui:"Frais port",uiVal:"0",api:"shipping_charge",val:"0",type:"number",note:"Ou line_item TRANSP_0-15"},
+{ui:"Ajustement",uiVal:"0",api:"adjustment",val:"0",type:"number"},
 ]},
-{section:"Livraison",icon:"🚚",fields:[
-{ui:"Méthode livraison (dropdown)",uiVal:"Sun-store.delivery",api:"delivery_method",val:'"Sun-store.delivery"',type:"string",dd:true},
-{ui:"ID méthode livraison",uiVal:"",api:"delivery_method_id",val:'"441540000008780394"',type:"ID"},
-{ui:"Adresse livraison",uiVal:"(héritée du contact)",api:"shipping_address_id",val:'"<address_id>"',type:"ID",note:"Par défaut = shipping du contact"},
-{ui:"Drop shipment?",uiVal:"Non",api:"is_drop_shipment",val:"false",type:"boolean"},
-{ui:"Backorder?",uiVal:"Non",api:"is_backorder",val:"false",type:"boolean"},
+{section:"CF: Référence",icon:"📌",fields:[
+{ui:"Référence Client",uiVal:"QW132795",api:"cf_ref_client",val:'"QW132795"',type:"string",note:"ID: 441540000000751793",hl:true},
+{ui:"VAT NUMBER",uiVal:"FR25829404292",api:"cf_vat_number",val:'"FR25829404292"',type:"string",note:"ID: 441540000008932462",hl:true},
+{ui:"Autoliquidation TVA",uiVal:"NON",api:"cf_autoliquidation_...",val:'["NON"]',type:"multiselect",note:'ID: 441540000008932489. Array: ["NON"]',dd:true,hl:true},
+{ui:"Devis N°",uiVal:"(vide)",api:"cf_devis_n",val:'""',type:"string",note:"ID: 441540000006805457"},
+{ui:"Délai livraison",uiVal:"(vide)",api:"cf_d_lai_de_livraison",val:'""',type:"string",note:"ID: 441540000006776394"},
+{ui:"Adresse livr. (AR)",uiVal:"(multiligne)",api:"cf_adresse_de_livraison_ar",val:'""',type:"multiline",note:"ID: 441540000006805423"},
 ]},
-{section:"Vendeur & Canal",icon:"👔",fields:[
-{ui:"Vendeur (dropdown)",uiVal:"SUN.STORE",api:"salesperson_name",val:'"SUN.STORE"',type:"string",note:"Aussi: salesperson_id",dd:true},
-{ui:"Canal de vente",uiVal:"Ventes directes",api:"sales_channel",val:'"direct_sales"',type:"string"},
-{ui:"Devise (dropdown)",uiVal:"EUR",api:"currency_id",val:'"441540000000000071"',type:"ID",note:"Héritée du contact",dd:true},
-{ui:"Taux de change",uiVal:"1",api:"exchange_rate",val:"1",type:"number"},
+{section:"CF: AfterShip",icon:"📦",fields:[
+{ui:"AS - ID",uiVal:"",api:"cf_as_id",val:'""',type:"string",note:"ID: 441540000006837297"},
+{ui:"AS - Statut",uiVal:"",api:"cf_as_statut",val:'""',type:"string",note:"ID: 441540000006837291"},
+{ui:"AS - Message",uiVal:"",api:"cf_as_message",val:'""',type:"string",note:"ID: 441540000006837301"},
+{ui:"AS - Date livraison",uiVal:"dd/MM/yyyy",api:"cf_as_date_livraison",val:'"2026-03-10"',type:"date",note:"ID: 441540000006838288. YYYY-MM-DD"},
+{ui:"AS - N° suivi",uiVal:"",api:"cf_as_num_ro_de_suivi",val:'""',type:"string",note:"ID: 441540000006837871"},
+{ui:"AS - URL suivi",uiVal:"",api:"cf_as_url_de_suivi",val:'"https://..."',type:"url",note:"ID: 441540000006837875"},
+{ui:"AS - Transporteur",uiVal:"",api:"cf_as_transporteur",val:'""',type:"string",note:"ID: 441540000006838330"},
+{ui:"AS - Livraison réelle",uiVal:"(dropdown)",api:"cf_as_livraison_r_elle",val:'""',type:"dropdown",note:"ID: 441540000007168047",dd:true},
+{ui:"Statut UPS",uiVal:"",api:"cf_statut_ups",val:'""',type:"string",note:"ID: 441540000007337085"},
 ]},
-{section:"Notes & Templates",icon:"📝",fields:[
-{ui:"Notes client",uiVal:"(texte libre)",api:"notes",val:'""',type:"string",note:"Visible sur le PDF"},
-{ui:"Conditions",uiVal:"(texte libre)",api:"terms",val:'""',type:"string",note:"CGV sur le PDF"},
-{ui:"Template PDF (dropdown)",uiVal:"",api:"template_id",val:'"<template_id>"',type:"ID",note:"GET /salesorders/templates",dd:true},
-{ui:"Contact persons",uiVal:"(du contact)",api:"contact_persons",val:'["<cp_id>"]',type:"array[ID]",note:"IDs des personnes à notifier"},
+{section:"Notes/Template",icon:"📝",fields:[
+{ui:"Notes",uiVal:"(texte)",api:"notes",val:'""',type:"string"},
+{ui:"CGV",uiVal:"En cas d'escompte...",api:"terms",val:'"..."',type:"string"},
+{ui:"Template PDF",uiVal:"—",api:"template_id",val:'"441540000001438145"',type:"ID",dd:true},
+{ui:"Contact persons",uiVal:"logistic26@...",api:"contact_persons",val:'["<cp_id>"]',type:"array[ID]"},
 ]},
-{section:"Custom Fields",icon:"⚙️",fields:[
-{ui:"Réf Client",uiVal:"QW132795",api:"cf_ref_client",val:'"QW132795"',type:"string",note:"custom_fields:[{customfield_id:'...',value:'...'}]"},
+{section:"Item CFs (auto)",icon:"📐",fields:[
+{ui:"Qté par carton",uiVal:"15",api:"cf_quantit_par_carton",val:"15",type:"number",note:"ID: 441540000000084057. Auto depuis fiche article",fix:true},
+{ui:"Qté par pallet",uiVal:"15",api:"cf_quantit_par_pallet",val:"15",type:"number",note:"ID: 441540000000084085. Auto",fix:true},
+{ui:"Poids net KG",uiVal:"15",api:"cf_poids_net_en_kg",val:"15.0",type:"decimal",note:"ID: 441540000000084166. Auto",fix:true},
+{ui:"Poids brut KG",uiVal:"15",api:"cf_poids_brut_en_kg",val:"15.0",type:"decimal",note:"ID: 441540000000084194. Auto",fix:true},
+{ui:"Nomenclature",uiVal:"—",api:"cf_nomenclature",val:"0",type:"number",note:"ID: 441540000000757532"},
+{ui:"PU NET",uiVal:"—",api:"cf_unit_rate",val:"0",type:"decimal",note:"ID: 441540000001469989"},
+{ui:"Fiche technique",uiVal:"(fichier)",api:"cf_fiche_technique",val:"attachment",type:"file",note:"Non settable via API"},
+{ui:"Manuel utilisation",uiVal:"(fichier)",api:"cf_manuel_d_utilisation",val:"attachment",type:"file",note:"Non settable via API"},
+]},
+{section:"Entrepôts",icon:"🏭",fields:[
+{ui:"Siège social",uiVal:"—",api:"warehouse_id",val:'"441540000000060036"',type:"ID",fix:true},
+{ui:"Qualiwatt (Villeneuve)",uiVal:"—",api:"warehouse_id",val:'"441540000000060038"',type:"ID",fix:true},
+{ui:"ADEE electronic",uiVal:"—",api:"warehouse_id",val:'"441540000000641889"',type:"ID",fix:true},
+{ui:"QW / LOGISTIC 26",uiVal:"—",api:"warehouse_id",val:'"441540000004548548"',type:"ID",fix:true},
+{ui:"QW / VDH",uiVal:"—",api:"warehouse_id",val:'"441540000004551552"',type:"ID",fix:true},
+]},
+{section:"Taxes",icon:"💰",fields:[
+{ui:"FR TVA 20%",uiVal:"20%",api:"tax_id",val:'"441540000005831077"',type:"ID",fix:true},
+{ui:"T.V.A - 20%",uiVal:"20%",api:"tax_id",val:'"441540000000095202"',type:"ID",fix:true},
+{ui:"T.V.A - 10%",uiVal:"10%",api:"tax_id",val:'"441540000005515036"',type:"ID",note:"compound_tax",fix:true},
+{ui:"T.V.A 0,00%",uiVal:"0%",api:"tax_id",val:'"441540000000359714"',type:"ID",fix:true},
+{ui:"Shopify Tax [20%]",uiVal:"20%",api:"tax_id",val:'"441540000000813615"',type:"ID",fix:true},
+{ui:"Shopify Tax [0%]",uiVal:"0%",api:"tax_id",val:'"441540000005664234"',type:"ID",fix:true},
 ]},
 ];
 
-const contactPayload=`// POST ${BASE}/books/v3/contacts?organization_id=${ORG}
-// EDITION EU - Champs testés et validés le 06/03/2026
+const cP=`// POST ${B}/books/v3/contacts?organization_id=${O}
 {
-  "contact_name": "Dullnig Elektro und Metall GmbH",
-  "company_name": "Dullnig Elektro und Metall GmbH",
+  "contact_name": "Nom Société",
+  "company_name": "Nom Société",
   "contact_type": "customer",
   "customer_sub_type": "business",
-  "language_code": "fr",
   "is_taxable": true,
   "tax_id": "441540000000359714",
   "tax_reg_label": "TAX",
-  "tax_reg_no": "ATU68695405",
+  "tax_reg_no": "FRXXXXXXXXX",
+  "account_id": "441540000000000352",
   "currency_id": "441540000000000071",
   "payment_terms": 0,
-  "payment_terms_label": "A la commande",
-  "billing_address": {
-    "attention": "Dullnig Elektro und Metall GmbH",
-    "address": "Franz Dullnig Gasse 2",
-    "city": "Klagenfurt am Woerthersee",
-    "zip": "9020", "country": "Austria",
-    "country_code": "AT",
-    "phone": "+43676842941210"
-  },
-  "shipping_address": {
-    "attention": "Harald Dullnig",
-    "address": "Franz-Dullnig-Gasse 2",
-    "city": "Klagenfurt am Woerthersee",
-    "zip": "9020", "country": "Austria",
-    "country_code": "AT",
-    "phone": "+43676842941210"
-  },
-  "contact_persons": [{
-    "salutation": "Mr",
-    "first_name": "Harald",
-    "last_name": "Dullnig",
-    "email": "elektro@dullnig.at",
-    "phone": "+43676842941210",
-    "is_primary_contact": true
-  }]
-}
+  "contact_persons": [{ "salutation": "Mr",
+    "first_name": "...", "last_name": "...",
+    "email": "...", "is_primary_contact": true }]
+}`;
 
-// ❌ NE PAS UTILISER sur edition EU:
-//   tax_id_type    -> erreur code 2
-//   tax_id_value   -> ignoré
-//   tax_treatment  -> ignoré silencieusement`;
-
-const soPayload=`// POST ${BASE}/books/v3/salesorders?organization_id=${ORG}
+const sP=`// POST ${B}/books/v3/salesorders?organization_id=${O}
 {
   "customer_id": "<customer_id>",
   "date": "2026-03-06",
   "shipment_date": "2026-03-07",
-  "reference_number": "REF-001",
   "delivery_method": "Sun-store.delivery",
   "salesperson_name": "SUN.STORE",
-  "is_inclusive_tax": false,
   "discount_type": "item_level",
+  "is_inclusive_tax": false,
   "line_items": [
     { "item_id": "<item_id>", "quantity": 1,
-      "rate": 1041.00, "tax_id": "<tax_id_20%>" },
-    { "item_id": "<item_id_transport>", "quantity": 1,
-      "rate": 30.00, "tax_id": "<tax_id_20%>" }
+      "rate": 1041.00,
+      "tax_id": "441540000005831077",
+      "warehouse_id": "441540000004548548" }
   ],
-  "notes": "Merci pour votre commande",
-  "terms": "Paiement a la commande"
+  "custom_fields": [
+    {"customfield_id":"441540000000751793","value":"QW132795"},
+    {"customfield_id":"441540000008932462","value":"FR..."},
+    {"customfield_id":"441540000008932489","value":["NON"]}
+  ]
 }`;
 
-function Copy({text}){const[ok,set]=useState(false);return(<button onClick={()=>{navigator.clipboard.writeText(text);set(true);setTimeout(()=>set(false),1500)}} style={{background:ok?'#10b981':'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.12)',color:ok?'#fff':'#888',padding:'4px 12px',borderRadius:'5px',cursor:'pointer',fontSize:'11px',fontFamily:'monospace'}}>{ok?'✓':'⎘'}</button>)}
+function Cp({text}){const[ok,s]=useState(false);return(<button onClick={()=>{navigator.clipboard.writeText(text);s(true);setTimeout(()=>s(false),1500)}} style={{background:ok?'#10b981':'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.12)',color:ok?'#fff':'#888',padding:'4px 12px',borderRadius:'5px',cursor:'pointer',fontSize:'11px',fontFamily:'monospace'}}>{ok?'✓':'⎘'}</button>)}
 
-function FieldRow({f}){
+function FR({f}){
 const bg=f.fix?'linear-gradient(135deg,#111 0%,#0f1a0f 100%)':f.warn?'linear-gradient(135deg,#111 0%,#1a1510 100%)':f.hl?'linear-gradient(135deg,#111 0%,#1a1520 100%)':'#111';
-const border=f.fix?'1px solid rgba(16,185,129,0.3)':f.warn?'1px solid rgba(234,179,8,0.25)':f.hl?'1px solid rgba(168,85,247,0.2)':'1px solid rgba(255,255,255,0.05)';
+const bd=f.fix?'1px solid rgba(16,185,129,0.25)':f.warn?'1px solid rgba(234,179,8,0.2)':f.hl?'1px solid rgba(168,85,247,0.2)':'1px solid rgba(255,255,255,0.05)';
 return(
-<div style={{background:bg,border:border,borderRadius:'8px',padding:'12px 14px'}}>
-<div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'6px',flexWrap:'wrap',gap:'6px'}}>
-<div style={{display:'flex',alignItems:'center',gap:'6px',flexWrap:'wrap'}}>
-<span style={{fontSize:'13px',fontWeight:600,color:'#e4e4e7'}}>{f.ui}</span>
-{f.req&&<span style={{fontSize:'8px',fontWeight:700,color:'#ef4444',background:'rgba(239,68,68,0.1)',padding:'2px 5px',borderRadius:'3px'}}>REQUIS</span>}
-{f.dd&&<span style={{fontSize:'8px',fontWeight:700,color:'#a855f7',background:'rgba(168,85,247,0.1)',padding:'2px 5px',borderRadius:'3px'}}>DROPDOWN</span>}
-{f.fix&&<span style={{fontSize:'8px',fontWeight:700,color:'#10b981',background:'rgba(16,185,129,0.1)',padding:'2px 5px',borderRadius:'3px'}}>TESTÉ EU</span>}
-{f.warn&&<span style={{fontSize:'8px',fontWeight:700,color:'#eab308',background:'rgba(234,179,8,0.1)',padding:'2px 5px',borderRadius:'3px'}}>IGNORÉ EU</span>}
+<div style={{background:bg,border:bd,borderRadius:'8px',padding:'10px 12px'}}>
+<div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'5px',flexWrap:'wrap',gap:'4px'}}>
+<div style={{display:'flex',alignItems:'center',gap:'5px',flexWrap:'wrap'}}>
+<span style={{fontSize:'12.5px',fontWeight:600,color:'#e4e4e7'}}>{f.ui}</span>
+{f.req&&<span style={{fontSize:'7px',fontWeight:700,color:'#ef4444',background:'rgba(239,68,68,0.1)',padding:'2px 4px',borderRadius:'2px'}}>REQUIS</span>}
+{f.dd&&<span style={{fontSize:'7px',fontWeight:700,color:'#a855f7',background:'rgba(168,85,247,0.1)',padding:'2px 4px',borderRadius:'2px'}}>DROPDOWN</span>}
+{f.fix&&<span style={{fontSize:'7px',fontWeight:700,color:'#10b981',background:'rgba(16,185,129,0.1)',padding:'2px 4px',borderRadius:'2px'}}>VÉRIFIÉ</span>}
+{f.warn&&<span style={{fontSize:'7px',fontWeight:700,color:'#eab308',background:'rgba(234,179,8,0.1)',padding:'2px 4px',borderRadius:'2px'}}>IGNORÉ EU</span>}
 </div>
-<span style={{fontSize:'10px',color:'#444',fontFamily:'monospace'}}>{f.type}</span>
+<span style={{fontSize:'9px',color:'#444',fontFamily:'monospace'}}>{f.type}</span>
 </div>
-<div style={{display:'grid',gridTemplateColumns:'1fr 24px 1fr',alignItems:'center',gap:'8px',marginBottom:f.note?'6px':0}}>
-<div style={{background:'rgba(255,255,255,0.02)',borderRadius:'5px',padding:'6px 10px'}}>
-<div style={{fontSize:'8px',color:'#555',textTransform:'uppercase',letterSpacing:'0.8px',marginBottom:'2px'}}>UI</div>
-<div style={{fontSize:'12px',color:'#999',fontFamily:'monospace',wordBreak:'break-all'}}>{f.uiVal||'—'}</div>
+<div style={{display:'grid',gridTemplateColumns:'1fr 20px 1fr',alignItems:'center',gap:'6px',marginBottom:f.note?'4px':0}}>
+<div style={{background:'rgba(255,255,255,0.02)',borderRadius:'4px',padding:'5px 8px'}}>
+<div style={{fontSize:'7px',color:'#555',textTransform:'uppercase',letterSpacing:'0.8px',marginBottom:'1px'}}>UI</div>
+<div style={{fontSize:'11px',color:'#999',fontFamily:'monospace',wordBreak:'break-all'}}>{f.uiVal||'—'}</div>
 </div>
-<span style={{color:'#f59e0b',textAlign:'center'}}>→</span>
-<div style={{background:f.fix?'rgba(16,185,129,0.04)':'rgba(245,158,11,0.03)',border:f.fix?'1px solid rgba(16,185,129,0.12)':'1px solid rgba(245,158,11,0.08)',borderRadius:'5px',padding:'6px 10px'}}>
-<div style={{fontSize:'8px',color:f.fix?'#10b981':'#f59e0b',textTransform:'uppercase',letterSpacing:'0.8px',marginBottom:'2px'}}>{f.api}</div>
-<div style={{fontSize:'12px',color:'#fafafa',fontFamily:'monospace',fontWeight:500,wordBreak:'break-all'}}>{f.val}</div>
+<span style={{color:'#f59e0b',textAlign:'center',fontSize:'12px'}}>→</span>
+<div style={{background:f.fix?'rgba(16,185,129,0.04)':'rgba(245,158,11,0.03)',border:f.fix?'1px solid rgba(16,185,129,0.1)':'1px solid rgba(245,158,11,0.06)',borderRadius:'4px',padding:'5px 8px'}}>
+<div style={{fontSize:'7px',color:f.fix?'#10b981':'#f59e0b',textTransform:'uppercase',letterSpacing:'0.8px',marginBottom:'1px'}}>{f.api}</div>
+<div style={{fontSize:'11px',color:'#fafafa',fontFamily:'monospace',fontWeight:500,wordBreak:'break-all'}}>{f.val}</div>
 </div>
 </div>
-{f.note&&<p style={{margin:0,fontSize:'11px',color:f.fix?'#6ee7b7':f.warn?'#fbbf24':'#666',lineHeight:1.4}}>{f.note}</p>}
+{f.note&&<p style={{margin:0,fontSize:'10px',color:f.fix?'#6ee7b7':f.warn?'#fbbf24':'#555',lineHeight:1.3}}>{f.note}</p>}
 </div>
 )}
 
 function App(){
-const[tab,setTab]=useState("contact");
-const[sec,setSec]=useState(0);
-const[showP,setShowP]=useState(false);
-const data=tab==="contact"?contactFields:salesOrderFields;
-const payload=tab==="contact"?contactPayload:soPayload;
-const ep=tab==="contact"?`POST /contacts?organization_id=${ORG}`:`POST /salesorders?organization_id=${ORG}`;
-
+const[tab,st]=useState("contact");
+const[sec,ss]=useState(0);
+const[sp,ssp]=useState(false);
+const data=tab==="contact"?CF:SO;
+const pay=tab==="contact"?cP:sP;
 return(
 <div style={{minHeight:'100vh',background:'#09090b',color:'#fafafa',fontFamily:"'Inter',-apple-system,sans-serif"}}>
-<div style={{background:'linear-gradient(135deg,#18181b 0%,#1a1a2e 50%,#16213e 100%)',borderBottom:'1px solid rgba(255,255,255,0.05)',padding:'24px 20px'}}>
-<div style={{maxWidth:'920px',margin:'0 auto'}}>
-<div style={{display:'flex',alignItems:'center',gap:'10px',marginBottom:'6px',flexWrap:'wrap'}}>
-<span style={{fontSize:'10px',fontWeight:600,color:'#f59e0b',background:'rgba(245,158,11,0.1)',padding:'2px 8px',borderRadius:'3px',textTransform:'uppercase',letterSpacing:'0.5px'}}>Zoho Books/Inventory API</span>
-<span style={{fontSize:'10px',color:'#555'}}>•</span>
-<span style={{fontSize:'10px',color:'#555',fontFamily:'monospace'}}>Org: {ORG}</span>
-<span style={{fontSize:'10px',color:'#555'}}>•</span>
-<span style={{fontSize:'10px',color:'#555',fontFamily:'monospace'}}>.eu</span>
-<span style={{fontSize:'10px',color:'#555'}}>•</span>
-<span style={{fontSize:'10px',color:'#10b981',fontFamily:'monospace'}}>v3 testé</span>
+<div style={{background:'linear-gradient(135deg,#18181b 0%,#1a1a2e 50%,#16213e 100%)',borderBottom:'1px solid rgba(255,255,255,0.05)',padding:'20px'}}>
+<div style={{maxWidth:'940px',margin:'0 auto'}}>
+<div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'4px',flexWrap:'wrap'}}>
+<span style={{fontSize:'9px',fontWeight:600,color:'#f59e0b',background:'rgba(245,158,11,0.1)',padding:'2px 7px',borderRadius:'3px',textTransform:'uppercase'}}>Zoho API</span>
+<span style={{fontSize:'9px',color:'#555'}}>Org: {O} | .eu | v4</span>
 </div>
-<h1 style={{margin:'0 0 4px',fontSize:'22px',fontWeight:700,letterSpacing:'-0.5px'}}>Zoho API Field Mapper</h1>
-<p style={{margin:0,fontSize:'13px',color:'#666'}}>Mapping complet UI → API : Création Client & Commande Client</p>
+<h1 style={{margin:'0 0 2px',fontSize:'20px',fontWeight:700}}>Zoho API Field Mapper</h1>
+<p style={{margin:0,fontSize:'12px',color:'#666'}}>Client ({CF.reduce((a,s)=>a+s.fields.length,0)}) & Commande ({SO.reduce((a,s)=>a+s.fields.length,0)}) - 15 CFs commande + 8 CFs article</p>
 </div>
 </div>
-<div style={{maxWidth:'920px',margin:'0 auto',padding:'20px'}}>
-
-{/* Test results banner */}
-<div style={{marginBottom:'16px',padding:'12px 16px',background:'rgba(16,185,129,0.05)',border:'1px solid rgba(16,185,129,0.15)',borderRadius:'8px'}}>
-<div style={{fontSize:'12px',color:'#6ee7b7',fontWeight:600,marginBottom:'4px'}}>🧪 Résultats tests API du 06/03/2026 (Org EU)</div>
-<div style={{fontSize:'11px',color:'#888',lineHeight:1.6}}>
-<span style={{color:'#10b981'}}>✅</span> <code style={{color:'#6ee7b7',fontSize:'11px'}}>tax_reg_label: "TAX"</code> remplit le dropdown UI <span style={{color:'#555'}}>|</span>{' '}
-<span style={{color:'#10b981'}}>✅</span> <code style={{color:'#6ee7b7',fontSize:'11px'}}>tax_reg_no</code> stocke le VAT number <span style={{color:'#555'}}>|</span>{' '}
-<span style={{color:'#ef4444'}}>❌</span> <code style={{color:'#fca5a5',fontSize:'11px'}}>tax_id_type</code> erreur code 2 sur .eu <span style={{color:'#555'}}>|</span>{' '}
-<span style={{color:'#eab308'}}>⚠️</span> <code style={{color:'#fbbf24',fontSize:'11px'}}>tax_treatment</code> ignoré sur .eu
+<div style={{maxWidth:'940px',margin:'0 auto',padding:'16px'}}>
+<div style={{marginBottom:'12px',padding:'8px 12px',background:'rgba(16,185,129,0.04)',border:'1px solid rgba(16,185,129,0.12)',borderRadius:'6px',fontSize:'10px',color:'#888',lineHeight:1.5}}>
+<span style={{color:'#6ee7b7',fontWeight:600}}>🧪 Testé 06/03/2026</span>{' | '}
+<span style={{color:'#10b981'}}>✅</span> tax_reg_label{' | '}
+<span style={{color:'#10b981'}}>✅</span> account_id{' | '}
+<span style={{color:'#ef4444'}}>❌</span> tax_id_type{' | '}
+15 SO custom fields + 5 entrepôts + 6 taxes
 </div>
-</div>
-
-<div style={{display:'flex',gap:'8px',marginBottom:'16px'}}>
-{[{id:"contact",label:"👤 Création Client",count:contactFields.reduce((a,s)=>a+s.fields.length,0)},{id:"salesorder",label:"🛒 Commande Client",count:salesOrderFields.reduce((a,s)=>a+s.fields.length,0)}].map(t=>(
-<button key={t.id} onClick={()=>{setTab(t.id);setSec(0);setShowP(false)}} style={{flex:1,background:tab===t.id?'rgba(245,158,11,0.08)':'rgba(255,255,255,0.03)',border:tab===t.id?'1px solid rgba(245,158,11,0.3)':'1px solid rgba(255,255,255,0.06)',color:tab===t.id?'#f59e0b':'#888',padding:'12px',borderRadius:'8px',cursor:'pointer',fontSize:'14px',fontWeight:600}}>{t.label} <span style={{fontSize:'11px',opacity:0.6}}>({t.count})</span></button>
+<div style={{display:'flex',gap:'6px',marginBottom:'12px'}}>
+{[{id:"contact",l:"👤 Client"},{id:"salesorder",l:"🛒 Commande"}].map(t=>(
+<button key={t.id} onClick={()=>{st(t.id);ss(0);ssp(false)}} style={{flex:1,background:tab===t.id?'rgba(245,158,11,0.08)':'rgba(255,255,255,0.03)',border:tab===t.id?'1px solid rgba(245,158,11,0.3)':'1px solid rgba(255,255,255,0.06)',color:tab===t.id?'#f59e0b':'#888',padding:'10px',borderRadius:'7px',cursor:'pointer',fontSize:'13px',fontWeight:600}}>{t.l}</button>
 ))}
 </div>
-<button onClick={()=>setShowP(!showP)} style={{marginBottom:'16px',background:showP?'#f59e0b':'rgba(245,158,11,0.08)',color:showP?'#000':'#f59e0b',border:'1px solid rgba(245,158,11,0.25)',padding:'8px 18px',borderRadius:'6px',cursor:'pointer',fontSize:'12px',fontWeight:600}}>{showP?'✕ Fermer':'{ } Payload JSON'}</button>
-{showP&&(
-<div style={{marginBottom:'16px',background:'#111',border:'1px solid rgba(245,158,11,0.15)',borderRadius:'10px',overflow:'hidden'}}>
-<div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 14px',borderBottom:'1px solid rgba(255,255,255,0.05)'}}>
-<code style={{fontSize:'11px',color:'#f59e0b'}}>{ep}</code>
-<Copy text={payload}/>
+<button onClick={()=>ssp(!sp)} style={{marginBottom:'12px',background:sp?'#f59e0b':'rgba(245,158,11,0.08)',color:sp?'#000':'#f59e0b',border:'1px solid rgba(245,158,11,0.25)',padding:'6px 14px',borderRadius:'5px',cursor:'pointer',fontSize:'11px',fontWeight:600}}>{sp?'✕ Fermer':'{ } JSON'}</button>
+{sp&&(<div style={{marginBottom:'12px',background:'#111',border:'1px solid rgba(245,158,11,0.15)',borderRadius:'8px',overflow:'hidden'}}>
+<div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 12px',borderBottom:'1px solid rgba(255,255,255,0.05)'}}>
+<code style={{fontSize:'10px',color:'#f59e0b'}}>POST {tab==="contact"?"/contacts":"/salesorders"}</code>
+<Cp text={pay}/>
 </div>
-<pre style={{margin:0,padding:'14px',fontSize:'11px',lineHeight:1.5,fontFamily:"'JetBrains Mono',monospace",color:'#ccc',overflowX:'auto',whiteSpace:'pre-wrap'}}>{payload}</pre>
-</div>
-)}
-<div style={{display:'flex',gap:'4px',marginBottom:'14px',overflowX:'auto',paddingBottom:'4px'}}>
+<pre style={{margin:0,padding:'12px',fontSize:'10px',lineHeight:1.5,fontFamily:"'JetBrains Mono',monospace",color:'#ccc',overflowX:'auto',whiteSpace:'pre-wrap'}}>{pay}</pre>
+</div>)}
+<div style={{display:'flex',gap:'3px',marginBottom:'12px',overflowX:'auto',paddingBottom:'3px'}}>
 {data.map((s,i)=>(
-<button key={i} onClick={()=>setSec(i)} style={{background:sec===i?'rgba(255,255,255,0.07)':'transparent',border:sec===i?'1px solid rgba(255,255,255,0.12)':'1px solid transparent',color:sec===i?'#fafafa':'#666',padding:'6px 12px',borderRadius:'6px',cursor:'pointer',fontSize:'12px',fontWeight:sec===i?600:400,whiteSpace:'nowrap',display:'flex',alignItems:'center',gap:'5px'}}>
-<span>{s.icon}</span> {s.section}
-<span style={{fontSize:'9px',background:sec===i?'rgba(245,158,11,0.15)':'rgba(255,255,255,0.04)',color:sec===i?'#f59e0b':'#555',padding:'1px 5px',borderRadius:'8px'}}>{s.fields.length}</span>
-</button>
-))}
+<button key={i} onClick={()=>ss(i)} style={{background:sec===i?'rgba(255,255,255,0.07)':'transparent',border:sec===i?'1px solid rgba(255,255,255,0.12)':'1px solid transparent',color:sec===i?'#fafafa':'#666',padding:'5px 10px',borderRadius:'5px',cursor:'pointer',fontSize:'11px',fontWeight:sec===i?600:400,whiteSpace:'nowrap',display:'flex',alignItems:'center',gap:'4px'}}>
+{s.icon} {s.section}
+<span style={{fontSize:'8px',background:sec===i?'rgba(245,158,11,0.15)':'rgba(255,255,255,0.04)',color:sec===i?'#f59e0b':'#555',padding:'1px 4px',borderRadius:'6px'}}>{s.fields.length}</span>
+</button>))}
 </div>
-<div style={{display:'flex',flexDirection:'column',gap:'6px'}}>
-{data[sec].fields.map((f,i)=><FieldRow key={i} f={f}/>)}
-</div>
-<div style={{marginTop:'28px',padding:'16px',background:'#111',border:'1px solid rgba(255,255,255,0.05)',borderRadius:'10px'}}>
-<h3 style={{margin:'0 0 8px',fontSize:'13px',fontWeight:600,color:'#e4e4e7'}}>💡 Résumé Edition EU (.eu)</h3>
-<div style={{fontSize:'11px',color:'#888',lineHeight:1.7}}>
-<p style={{margin:'0 0 6px'}}><strong style={{color:'#f59e0b'}}>Base URL:</strong> <code style={{fontFamily:'monospace',color:'#ccc',background:'rgba(255,255,255,0.04)',padding:'1px 4px',borderRadius:'2px'}}>{BASE}/books/v3/</code></p>
-<p style={{margin:'0 0 6px'}}><strong style={{color:'#10b981'}}>Dropdown TAX:</strong> <code style={{color:'#6ee7b7'}}>tax_reg_label: "TAX"</code> + <code style={{color:'#6ee7b7'}}>tax_reg_no: "ATU..."</code> (testé, confirmé)</p>
-<p style={{margin:'0 0 6px'}}><strong style={{color:'#ef4444'}}>Ne PAS envoyer:</strong> <code style={{color:'#fca5a5'}}>tax_id_type</code> (erreur 2), <code style={{color:'#fca5a5'}}>tax_id_value</code> (ignoré), <code style={{color:'#fca5a5'}}>tax_treatment</code> (ignoré)</p>
-<p style={{margin:'0 0 6px'}}><strong style={{color:'#f59e0b'}}>payment_terms</strong> = jours (0=A la commande, 30=Net 30, -2=fin de mois)</p>
-<p style={{margin:0}}><strong style={{color:'#f59e0b'}}>IDs réels:</strong> TVA 0% = 441540000000359714 | EUR = 441540000000000071</p>
+<div style={{display:'flex',flexDirection:'column',gap:'5px'}}>
+{data[sec].fields.map((f,i)=><FR key={i} f={f}/>)}
 </div>
 </div>
-</div>
-</div>
-)}
+</div>)}
 ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
 </script>
 </body>
