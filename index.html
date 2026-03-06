@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZOHOMAPPER — Contact Field Mapper</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗺️</text></svg>" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.26.9/babel.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body style="margin:0;padding:0;background:#09090b;">
+<div id="root"></div>
+<script type="text/babel">
+const { useState } = React;
+
+// [Full component code inline - same as the artifact]
+
+const fieldMapping = [
+  {
+    category: "Identification",
+    icon: "🏢",
+    fields: [
+      { label: "Type de client", pdfValue: "Entreprise", apiField: "contact_type", apiValue: '"customer"', type: "string", note: 'Allowed values: "customer", "vendor"', required: true },
+      { label: "Contact principal (Civilité)", pdfValue: "M.", apiField: "contact_persons[0].salutation", apiValue: '"Mr"', type: "string", note: 'Allowed: "Mr", "Mrs", "Ms", "Miss", "Dr"', required: false },
+      { label: "Contact principal (Prénom)", pdfValue: "Ricardo Manuel", apiField: "contact_persons[0].first_name", apiValue: '"Ricardo Manuel"', type: "string", note: "Prénom du contact principal", required: false },
+      { label: "Contact principal (Nom)", pdfValue: "Rosa Domingos", apiField: "contact_persons[0].last_name", apiValue: '"Rosa Domingos"', type: "string", note: "Nom de famille du contact principal", required: false },
+      { label: "Nom de la société", pdfValue: "Ricardo Manuel Rosa Domingos", apiField: "company_name", apiValue: '"Ricardo Manuel Rosa Domingos"', type: "string", note: "Max 200 caractères. Nom légal de l'entreprise.", required: false },
+      { label: "Nom d'affichage *", pdfValue: "Ricardo Manuel Rosa Domingos", apiField: "contact_name", apiValue: '"Ricardo Manuel Rosa Domingos"', type: "string", note: "⚠️ REQUIS — Nom utilisé pour l'affichage et la recherche.", required: true },
+      { label: "Adresse e-mail", pdfValue: "(vide)", apiField: "contact_persons[0].email", apiValue: '""', type: "string", note: "Email du contact principal", required: false },
+      { label: "Numéro du client *", pdfValue: "CUS-566854", apiField: "contact_number", apiValue: '"CUS-566854"', type: "string", note: "Max 200 chars. Si fourni, ajouter query param: ignore_auto_number_generation=true", required: false },
+    ],
+  },
+  {
+    category: "Coordonnées",
+    icon: "📞",
+    fields: [
+      { label: "Téléphone (indicatif)", pdfValue: "+351", apiField: "contact_persons[0].phone", apiValue: '"+351-961542475"', type: "string", note: "Format libre, inclure l'indicatif dans la valeur", required: false },
+      { label: "Téléphone portable", pdfValue: "961542475", apiField: "contact_persons[0].mobile", apiValue: '"+351-961542475"', type: "string", note: "Numéro mobile du contact", required: false },
+      { label: "Customer Language", pdfValue: "français", apiField: "language_code", apiValue: '"fr"', type: "string", note: 'Allowed: "de","en","es","fr","it","ja","nl","pt","pt_br","sv","zh","en_gb"', required: false },
+    ],
+  },
+  {
+    category: "Fiscalité",
+    icon: "🏛️",
+    fields: [
+      { label: "Numéro d'identification fiscale (Type)", pdfValue: "TAX", apiField: "tax_id_type", apiValue: '"TAX"', type: "dropdown → string", note: 'Menu déroulant UI. Via API: "TAX" (standard EU). Autres: "SSN", "ATIN", "ITIN", "EIN", "PTIN".', required: false, highlight: true },
+      { label: "Numéro d'identification fiscale (Valeur)", pdfValue: "PT263757994", apiField: "tax_id_value", apiValue: '"PT263757994"', type: "string", note: "Le NIF portugais. Format: 2 lettres pays + 9 chiffres.", required: false, highlight: true },
+      { label: "Tax Rate", pdfValue: "T.V.A 0,00% [0%]", apiField: "tax_id", apiValue: '"<tax_id_from_settings>"', type: "ID (string)", note: 'Menu déroulant UI. Via API: passer le tax_id de la taxe "T.V.A 0%" créée dans Settings > Taxes. GET /settings/taxes pour récupérer l\'ID.', required: false, highlight: true },
+      { label: "Is Taxable", pdfValue: "(implicite: oui)", apiField: "is_taxable", apiValue: "true", type: "boolean", note: "Doit être true pour que tax_id soit pris en compte.", required: false },
+      { label: "Tax Treatment", pdfValue: "(EU edition)", apiField: "tax_treatment", apiValue: '"vat_registered"', type: "string", note: 'EU: "vat_registered", "vat_not_registered", "non_gcc". Client portugais avec NIF → vat_registered.', required: false, highlight: true },
+      { label: "TDS", pdfValue: "Non activé", apiField: "is_tds_registered", apiValue: "false", type: "boolean", note: "Tax Deducted at Source — non pertinent ici.", required: false },
+    ],
+  },
+  {
+    category: "Paramètres financiers",
+    icon: "💶",
+    fields: [
+      { label: "Devise par défaut *", pdfValue: "EUR - Euro", apiField: "currency_id", apiValue: '"<currency_id_EUR>"', type: "ID (string)", note: "GET /settings/currencies. Chercher currency_code = 'EUR'.", required: true },
+      { label: "Comptes débiteurs", pdfValue: "Comptes clients", apiField: "(org-level config)", apiValue: "—", type: "—", note: "Pas de champ API direct. Config au niveau organisation.", required: false },
+      { label: "Limite de crédit", pdfValue: "(vide)", apiField: "credit_limit", apiValue: "0", type: "number", note: "Limite de crédit en devise par défaut.", required: false },
+      { label: "Conditions de paiement", pdfValue: "A la commande", apiField: "payment_terms", apiValue: "0", type: "number (jours)", note: 'Menu déroulant UI. API: nombre de jours (0 = "A la commande"). -2 = fin de mois, -3 = fin mois suivant. payment_terms_label = "A la commande".', required: false, highlight: true },
+      { label: "Liste des prix", pdfValue: "(vide)", apiField: "price_list_id", apiValue: '""', type: "ID (string)", note: "ID de la liste de prix associée.", required: false },
+      { label: "Paiement par prélèvement auto", pdfValue: "Non coché", apiField: "(portal config)", apiValue: "—", type: "—", note: "Se gère via le portail client, pas via l'API.", required: false },
+    ],
+  },
+];
+
+const fullPayload = `{
+  "contact_name": "Ricardo Manuel Rosa Domingos",
+  "company_name": "Ricardo Manuel Rosa Domingos",
+  "contact_type": "customer",
+  "contact_number": "CUS-566854",
+  "language_code": "fr",
+  "is_taxable": true,
+  "tax_id": "<tax_id_TVA_0%>",
+  "tax_id_type": "TAX",
+  "tax_id_value": "PT263757994",
+  "tax_treatment": "vat_registered",
+  "is_tds_registered": false,
+  "currency_id": "<currency_id_EUR>",
+  "payment_terms": 0,
+  "payment_terms_label": "A la commande",
+  "contact_persons": [
+    {
+      "salutation": "Mr",
+      "first_name": "Ricardo Manuel",
+      "last_name": "Rosa Domingos",
+      "email": "",
+      "phone": "+351-961542475",
+      "mobile": "+351-961542475",
+      "is_primary_contact": true
+    }
+  ]
+}`;
+
+const prerequisiteAPIs = [
+  { label: "Récupérer les taxes", method: "GET", endpoint: "/settings/taxes?organization_id={org_id}", purpose: "Trouver le tax_id de « T.V.A 0,00% »", domain: "zohoapis.eu" },
+  { label: "Récupérer les devises", method: "GET", endpoint: "/settings/currencies?organization_id={org_id}", purpose: "Trouver le currency_id pour EUR", domain: "zohoapis.eu" },
+  { label: "Récupérer les conditions de paiement", method: "GET", endpoint: "/settings/paymentterms?organization_id={org_id}", purpose: "Vérifier les payment_terms disponibles", domain: "zohoapis.eu" },
+  { label: "Créer le contact", method: "POST", endpoint: "/contacts?organization_id={org_id}", purpose: "Créer le client avec le payload", domain: "zohoapis.eu" },
+];
+
+function CopyButton({ text }) {
+  const [copied, setCopied] = useState(false);
+  return React.createElement('button', {
+    onClick: () => { navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2000); },
+    style: { background: copied ? '#10b981' : 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', color: copied ? '#fff' : '#a1a1aa', padding: '6px 14px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontFamily: "'JetBrains Mono', monospace", transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '6px' }
+  }, copied ? '✓ Copié' : '⎘ Copier');
+}
+
+function App() {
+  const [activeCategory, setActiveCategory] = useState(0);
+  const [showPayload, setShowPayload] = useState(false);
+  const [showPrereqs, setShowPrereqs] = useState(false);
+
+  return (
+    <div style={{minHeight:'100vh',background:'#09090b',color:'#fafafa',fontFamily:"'Inter', -apple-system, sans-serif",padding:0}}>
+      <div style={{background:'linear-gradient(135deg, #18181b 0%, #1a1a2e 50%, #16213e 100%)',borderBottom:'1px solid rgba(255,255,255,0.06)',padding:'32px 24px'}}>
+        <div style={{maxWidth:'900px',margin:'0 auto'}}>
+          <div style={{display:'flex',alignItems:'center',gap:'12px',marginBottom:'8px'}}>
+            <span style={{fontSize:'11px',fontWeight:600,color:'#f59e0b',background:'rgba(245,158,11,0.12)',padding:'3px 10px',borderRadius:'4px',letterSpacing:'0.5px',textTransform:'uppercase'}}>Zoho Books API v3</span>
+            <span style={{fontSize:'11px',color:'#71717a'}}>•</span>
+            <span style={{fontSize:'11px',color:'#71717a',fontFamily:"'JetBrains Mono', monospace"}}>POST /contacts</span>
+          </div>
+          <h1 style={{margin:'0 0 6px 0',fontSize:'26px',fontWeight:700,letterSpacing:'-0.5px',background:'linear-gradient(90deg, #fff 0%, #a1a1aa 100%)',WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent'}}>Contact Field Mapper</h1>
+          <p style={{margin:0,fontSize:'14px',color:'#71717a',fontWeight:400}}>Ricardo Manuel Rosa Domingos — CUS-566854 — PDF → API</p>
+        </div>
+      </div>
+      <div style={{maxWidth:'900px',margin:'0 auto',padding:'24px'}}>
+        <div style={{display:'flex',gap:'10px',marginBottom:'24px',flexWrap:'wrap'}}>
+          <button onClick={()=>{setShowPayload(!showPayload);setShowPrereqs(false)}} style={{background:showPayload?'#f59e0b':'rgba(245,158,11,0.1)',color:showPayload?'#000':'#f59e0b',border:'1px solid rgba(245,158,11,0.3)',padding:'10px 20px',borderRadius:'8px',cursor:'pointer',fontSize:'13px',fontWeight:600,transition:'all 0.2s'}}>{showPayload?'✕ Fermer':'{ } Payload JSON complet'}</button>
+          <button onClick={()=>{setShowPrereqs(!showPrereqs);setShowPayload(false)}} style={{background:showPrereqs?'#3b82f6':'rgba(59,130,246,0.1)',color:showPrereqs?'#fff':'#3b82f6',border:'1px solid rgba(59,130,246,0.3)',padding:'10px 20px',borderRadius:'8px',cursor:'pointer',fontSize:'13px',fontWeight:600,transition:'all 0.2s'}}>{showPrereqs?'✕ Fermer':'🔗 Workflow API (4 étapes)'}</button>
+        </div>
+        {showPayload && (
+          <div style={{marginBottom:'24px',background:'#111113',border:'1px solid rgba(245,158,11,0.2)',borderRadius:'12px',overflow:'hidden'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'12px 16px',borderBottom:'1px solid rgba(255,255,255,0.06)'}}>
+              <span style={{fontSize:'12px',fontWeight:600,color:'#f59e0b'}}>POST https://www.zohoapis.eu/books/v3/contacts?organization_id=&#123;org_id&#125;</span>
+              <CopyButton text={fullPayload} />
+            </div>
+            <pre style={{margin:0,padding:'16px',fontSize:'12px',lineHeight:1.6,fontFamily:"'JetBrains Mono', monospace",color:'#d4d4d8',overflowX:'auto',whiteSpace:'pre-wrap'}}>{fullPayload}</pre>
+            <div style={{padding:'12px 16px',borderTop:'1px solid rgba(255,255,255,0.06)',background:'rgba(245,158,11,0.04)'}}>
+              <p style={{margin:0,fontSize:'12px',color:'#a1a1aa',lineHeight:1.5}}>⚠️ Remplacer <code style={{color:'#f59e0b',background:'rgba(245,158,11,0.12)',padding:'1px 5px',borderRadius:'3px'}}>&lt;tax_id_TVA_0%&gt;</code> et <code style={{color:'#f59e0b',background:'rgba(245,158,11,0.12)',padding:'1px 5px',borderRadius:'3px'}}>&lt;currency_id_EUR&gt;</code> par les vraies valeurs. Ajouter <code style={{color:'#f59e0b',background:'rgba(245,158,11,0.12)',padding:'1px 5px',borderRadius:'3px'}}>ignore_auto_number_generation=true</code> si contact_number fourni.</p>
+            </div>
+          </div>
+        )}
+        {showPrereqs && (
+          <div style={{marginBottom:'24px',display:'flex',flexDirection:'column',gap:'8px'}}>
+            {prerequisiteAPIs.map((api,i) => (
+              <div key={i} style={{background:'#111113',border:'1px solid rgba(59,130,246,0.15)',borderRadius:'10px',padding:'14px 18px',display:'flex',alignItems:'center',gap:'14px'}}>
+                <div style={{width:'28px',height:'28px',background:i===prerequisiteAPIs.length-1?'rgba(16,185,129,0.15)':'rgba(59,130,246,0.1)',borderRadius:'6px',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'13px',fontWeight:700,color:i===prerequisiteAPIs.length-1?'#10b981':'#3b82f6',flexShrink:0}}>{i+1}</div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'3px'}}>
+                    <span style={{fontSize:'10px',fontWeight:700,color:api.method==='POST'?'#10b981':'#3b82f6',background:api.method==='POST'?'rgba(16,185,129,0.12)':'rgba(59,130,246,0.12)',padding:'2px 6px',borderRadius:'3px',fontFamily:"'JetBrains Mono', monospace"}}>{api.method}</span>
+                    <span style={{fontSize:'12px',fontWeight:600,color:'#e4e4e7'}}>{api.label}</span>
+                  </div>
+                  <code style={{fontSize:'11px',color:'#71717a',fontFamily:"'JetBrains Mono', monospace",wordBreak:'break-all'}}>https://www.{api.domain}/books/v3{api.endpoint}</code>
+                  <p style={{margin:'4px 0 0',fontSize:'11px',color:'#52525b'}}>→ {api.purpose}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        <div style={{display:'flex',gap:'6px',marginBottom:'20px',overflowX:'auto',paddingBottom:'4px'}}>
+          {fieldMapping.map((cat,i) => (
+            <button key={i} onClick={()=>setActiveCategory(i)} style={{background:activeCategory===i?'rgba(255,255,255,0.08)':'transparent',border:activeCategory===i?'1px solid rgba(255,255,255,0.15)':'1px solid transparent',color:activeCategory===i?'#fafafa':'#71717a',padding:'8px 16px',borderRadius:'8px',cursor:'pointer',fontSize:'13px',fontWeight:activeCategory===i?600:400,transition:'all 0.2s',whiteSpace:'nowrap',display:'flex',alignItems:'center',gap:'6px'}}>
+              <span>{cat.icon}</span> {cat.category}
+              <span style={{fontSize:'10px',background:activeCategory===i?'rgba(245,158,11,0.2)':'rgba(255,255,255,0.05)',color:activeCategory===i?'#f59e0b':'#52525b',padding:'1px 6px',borderRadius:'10px',fontWeight:600}}>{cat.fields.length}</span>
+            </button>
+          ))}
+        </div>
+        <div style={{display:'flex',flexDirection:'column',gap:'8px'}}>
+          {fieldMapping[activeCategory].fields.map((field,i) => (
+            <div key={i} style={{background:field.highlight?'linear-gradient(135deg, #111113 0%, #1a1520 100%)':'#111113',border:field.highlight?'1px solid rgba(168,85,247,0.25)':'1px solid rgba(255,255,255,0.06)',borderRadius:'10px',padding:'16px 18px',transition:'all 0.2s'}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:'10px',flexWrap:'wrap',gap:'8px'}}>
+                <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
+                  <span style={{fontSize:'14px',fontWeight:600,color:'#e4e4e7'}}>{field.label}</span>
+                  {field.required && <span style={{fontSize:'9px',fontWeight:700,color:'#ef4444',background:'rgba(239,68,68,0.12)',padding:'2px 6px',borderRadius:'3px',letterSpacing:'0.5px'}}>REQUIS</span>}
+                  {field.highlight && <span style={{fontSize:'9px',fontWeight:700,color:'#a855f7',background:'rgba(168,85,247,0.12)',padding:'2px 6px',borderRadius:'3px',letterSpacing:'0.5px'}}>DROPDOWN</span>}
+                </div>
+                <span style={{fontSize:'11px',color:'#52525b',fontFamily:"'JetBrains Mono', monospace"}}>{field.type}</span>
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr auto 1fr',alignItems:'center',gap:'12px',marginBottom:'10px'}}>
+                <div style={{background:'rgba(255,255,255,0.03)',borderRadius:'6px',padding:'8px 12px'}}>
+                  <div style={{fontSize:'9px',color:'#52525b',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'3px',fontWeight:600}}>PDF (UI)</div>
+                  <div style={{fontSize:'13px',color:'#a1a1aa',fontFamily:"'JetBrains Mono', monospace"}}>{field.pdfValue}</div>
+                </div>
+                <div style={{color:'#f59e0b',fontSize:'16px'}}>→</div>
+                <div style={{background:'rgba(245,158,11,0.04)',border:'1px solid rgba(245,158,11,0.1)',borderRadius:'6px',padding:'8px 12px'}}>
+                  <div style={{fontSize:'9px',color:'#f59e0b',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'3px',fontWeight:600}}>{field.apiField}</div>
+                  <div style={{fontSize:'13px',color:'#fafafa',fontFamily:"'JetBrains Mono', monospace",fontWeight:500}}>{field.apiValue}</div>
+                </div>
+              </div>
+              <p style={{margin:0,fontSize:'12px',color:'#71717a',lineHeight:1.5,paddingLeft:'2px'}}>{field.note}</p>
+            </div>
+          ))}
+        </div>
+        <div style={{marginTop:'32px',padding:'20px',background:'#111113',border:'1px solid rgba(255,255,255,0.06)',borderRadius:'12px'}}>
+          <h3 style={{margin:'0 0 10px',fontSize:'14px',fontWeight:600,color:'#e4e4e7'}}>💡 Notes clés — Édition EU (.eu)</h3>
+          <div style={{fontSize:'12px',color:'#a1a1aa',lineHeight:1.8}}>
+            <p style={{margin:'0 0 8px'}}><strong style={{color:'#f59e0b'}}>Endpoint:</strong> <code style={{fontFamily:"'JetBrains Mono', monospace",color:'#d4d4d8',background:'rgba(255,255,255,0.05)',padding:'2px 6px',borderRadius:'3px'}}>https://www.zohoapis.eu/books/v3/contacts</code></p>
+            <p style={{margin:'0 0 8px'}}><strong style={{color:'#f59e0b'}}>tax_id_type / tax_id_value:</strong> Le menu "N° d'identification fiscale" = 2 champs API. Le type (TAX) et la valeur (le NIF).</p>
+            <p style={{margin:'0 0 8px'}}><strong style={{color:'#f59e0b'}}>tax_id (Tax Rate):</strong> Ce n'est PAS un pourcentage. C'est l'ID interne Zoho de la taxe. GET /settings/taxes d'abord.</p>
+            <p style={{margin:'0 0 8px'}}><strong style={{color:'#f59e0b'}}>tax_treatment:</strong> Client portugais avec NIF → "vat_registered". Sans NIF → "vat_not_registered".</p>
+            <p style={{margin:0}}><strong style={{color:'#f59e0b'}}>payment_terms:</strong> "A la commande" = 0 jours. Valeurs spéciales: -2 (fin de mois), -3 (fin mois suivant).</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
