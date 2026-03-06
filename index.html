@@ -82,7 +82,7 @@ const SO=[
 {ui:"Taux HT *",uiVal:"1041",api:"line_items[].rate",val:"1041.00",type:"number",req:true,hl:true},
 {ui:"Remise",uiVal:"0 %",api:"line_items[].discount",val:'"0%"',type:"string"},
 {ui:"Taxe",uiVal:"FR TVA [20%]",api:"line_items[].tax_id",val:'"441540000005831077"',type:"ID",note:"FR TVA 20%",dd:true,hl:true},
-{ui:"Entrepôt",uiVal:"QW/LOGISTIC 26",api:"line_items[].warehouse_id",val:'"441540000004548548"',type:"ID",note:"Par article",dd:true,hl:true},
+{ui:"Entrepôt",uiVal:"QW/LOGISTIC 26",api:"line_items[].warehouse_id",val:'"441540000004548548"',type:"ID",note:"TOUJOURS sélectionner QW / LOGISTIC 26. Obligatoire sur chaque line_item.",dd:true,fix:true},
 {ui:"Unité",uiVal:"pcs",api:"line_items[].unit",val:'"pcs"',type:"string"},
 ]},
 {section:"Taxes/Remises",icon:"🧾",fields:[
@@ -128,11 +128,11 @@ const SO=[
 {ui:"Manuel utilisation",uiVal:"(fichier)",api:"cf_manuel_d_utilisation",val:"attachment",type:"file",note:"Non settable via API"},
 ]},
 {section:"Entrepôts",icon:"🏭",fields:[
-{ui:"Siège social",uiVal:"—",api:"warehouse_id",val:'"441540000000060036"',type:"ID",fix:true},
-{ui:"Qualiwatt (Villeneuve)",uiVal:"—",api:"warehouse_id",val:'"441540000000060038"',type:"ID",fix:true},
-{ui:"ADEE electronic",uiVal:"—",api:"warehouse_id",val:'"441540000000641889"',type:"ID",fix:true},
-{ui:"QW / LOGISTIC 26",uiVal:"—",api:"warehouse_id",val:'"441540000004548548"',type:"ID",fix:true},
-{ui:"QW / VDH",uiVal:"—",api:"warehouse_id",val:'"441540000004551552"',type:"ID",fix:true},
+{ui:"Siège social",uiVal:"—",api:"warehouse_id",val:'"441540000000060036"',type:"ID"},
+{ui:"Qualiwatt (Villeneuve)",uiVal:"—",api:"warehouse_id",val:'"441540000000060038"',type:"ID"},
+{ui:"ADEE electronic",uiVal:"—",api:"warehouse_id",val:'"441540000000641889"',type:"ID"},
+{ui:"⭐ QW / LOGISTIC 26",uiVal:"DÉFAUT",api:"warehouse_id",val:'"441540000004548548"',type:"ID",note:"TOUJOURS utiliser celui-ci",fix:true},
+{ui:"QW / VDH",uiVal:"—",api:"warehouse_id",val:'"441540000004551552"',type:"ID"},
 ]},
 {section:"Taxes",icon:"💰",fields:[
 {ui:"FR TVA 20%",uiVal:"20%",api:"tax_id",val:'"441540000005831077"',type:"ID",fix:true},
@@ -175,7 +175,9 @@ const sP=`// POST ${B}/books/v3/salesorders?organization_id=${O}
     { "item_id": "<item_id>", "quantity": 1,
       "rate": 1041.00,
       "tax_id": "441540000005831077",
-      "warehouse_id": "441540000004548548" }
+      "warehouse_id": "441540000004548548" },
+    { "item_id": "<item_id_transport>", "quantity": 1,
+      "rate": 30.00, "tax_id": "441540000000359714" }
   ],
   "custom_fields": [
     {"customfield_id":"441540000000751793","value":"QW132795"},
