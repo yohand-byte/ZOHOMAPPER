@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ZOHOMAPPER — API Field Mapper</title>
+<title>ZOHOMAPPER v3 — API Field Mapper</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗺️</text></svg>">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
@@ -38,12 +38,12 @@ const contactFields=[
 {ui:"Devise par défaut * (dropdown)",uiVal:"EUR - Euro",api:"currency_id",val:'"441540000000000071"',type:"ID",note:"GET /settings/currencies. Ton EUR = 441540000000000071",req:true,dd:true},
 ]},
 {section:"Fiscalité",icon:"🏛️",fields:[
-{ui:"N° identification fiscale - Type (dropdown)",uiVal:"TAX",api:"tax_id_type",val:'"TAX"',type:"string",note:'Dropdown UI. Valeurs: "TAX","SSN","ATIN","ITIN","EIN","PTIN"',dd:true,hl:true},
-{ui:"N° identification fiscale - Valeur",uiVal:"PT263757994 / ATU68695405",api:"tax_id_value",val:'"ATU68695405"',type:"string",note:"Le NIF/VAT number.",hl:true},
+{ui:"N° identification fiscale - Type (dropdown TAX)",uiVal:"TAX",api:"tax_reg_label",val:'"TAX"',type:"string",note:'Le dropdown UI "TAX/SSN/..." = tax_reg_label en API. Testé et confirmé sur édition EU. tax_id_type est US-only et rejeté (erreur 2) sur .eu',dd:true,hl:true,fix:true},
+{ui:"N° identification fiscale - Valeur",uiVal:"PT263757994 / ATU68695405",api:"tax_reg_no",val:'"ATU68695405"',type:"string",note:"Le numéro NIF/VAT. tax_id_value est US-only, ignoré sur .eu. Utiliser tax_reg_no.",hl:true,fix:true},
 {ui:"Tax Rate (dropdown)",uiVal:"T.V.A 0,00% [0%]",api:"tax_id",val:'"441540000000359714"',type:"ID",note:"PAS un %. C'est l'ID Zoho. GET /settings/taxes. Ta TVA 0% = 441540000000359714",dd:true,hl:true},
 {ui:"Is Taxable (implicite)",uiVal:"Oui (si taxe assignée)",api:"is_taxable",val:"true",type:"boolean",note:"Doit être true pour que tax_id fonctionne"},
-{ui:"Tax Treatment",uiVal:"(selon édition)",api:"tax_treatment",val:'"vat_registered"',type:"string",note:'"vat_registered","vat_not_registered","non_gcc"',hl:true},
-{ui:"Tax Reg No (VAT)",uiVal:"ATU68695405",api:"tax_reg_no",val:'"ATU68695405"',type:"string",note:"N° TVA intracommunautaire"},
+{ui:"Tax Treatment",uiVal:"(selon édition)",api:"tax_treatment",val:"(ignoré sur EU)",type:"string",note:'Champ UK/GCC only. Sur édition EU: ignoré silencieusement. Ne pas envoyer.',warn:true},
+{ui:"Tax Reg No (VAT)",uiVal:"ATU68695405",api:"tax_reg_no",val:'"ATU68695405"',type:"string",note:"N° TVA intracommunautaire. Aussi stocké dans tax_info_list[0].tax_registration_no"},
 {ui:"TDS",uiVal:"Non activé",api:"is_tds_registered",val:"false",type:"boolean"},
 ]},
 {section:"Conditions",icon:"💶",fields:[
@@ -133,6 +133,7 @@ const salesOrderFields=[
 ];
 
 const contactPayload=`// POST ${BASE}/books/v3/contacts?organization_id=${ORG}
+// EDITION EU - Champs testés et validés le 06/03/2026
 {
   "contact_name": "Dullnig Elektro und Metall GmbH",
   "company_name": "Dullnig Elektro und Metall GmbH",
@@ -141,9 +142,7 @@ const contactPayload=`// POST ${BASE}/books/v3/contacts?organization_id=${ORG}
   "language_code": "fr",
   "is_taxable": true,
   "tax_id": "441540000000359714",
-  "tax_id_type": "TAX",
-  "tax_id_value": "ATU68695405",
-  "tax_treatment": "vat_registered",
+  "tax_reg_label": "TAX",
   "tax_reg_no": "ATU68695405",
   "currency_id": "441540000000000071",
   "payment_terms": 0,
@@ -172,7 +171,12 @@ const contactPayload=`// POST ${BASE}/books/v3/contacts?organization_id=${ORG}
     "phone": "+43676842941210",
     "is_primary_contact": true
   }]
-}`;
+}
+
+// ❌ NE PAS UTILISER sur edition EU:
+//   tax_id_type    -> erreur code 2
+//   tax_id_value   -> ignoré
+//   tax_treatment  -> ignoré silencieusement`;
 
 const soPayload=`// POST ${BASE}/books/v3/salesorders?organization_id=${ORG}
 {
@@ -196,13 +200,18 @@ const soPayload=`// POST ${BASE}/books/v3/salesorders?organization_id=${ORG}
 
 function Copy({text}){const[ok,set]=useState(false);return(<button onClick={()=>{navigator.clipboard.writeText(text);set(true);setTimeout(()=>set(false),1500)}} style={{background:ok?'#10b981':'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.12)',color:ok?'#fff':'#888',padding:'4px 12px',borderRadius:'5px',cursor:'pointer',fontSize:'11px',fontFamily:'monospace'}}>{ok?'✓':'⎘'}</button>)}
 
-function FieldRow({f}){return(
-<div style={{background:f.hl?'linear-gradient(135deg,#111 0%,#1a1520 100%)':'#111',border:f.hl?'1px solid rgba(168,85,247,0.2)':'1px solid rgba(255,255,255,0.05)',borderRadius:'8px',padding:'12px 14px'}}>
+function FieldRow({f}){
+const bg=f.fix?'linear-gradient(135deg,#111 0%,#0f1a0f 100%)':f.warn?'linear-gradient(135deg,#111 0%,#1a1510 100%)':f.hl?'linear-gradient(135deg,#111 0%,#1a1520 100%)':'#111';
+const border=f.fix?'1px solid rgba(16,185,129,0.3)':f.warn?'1px solid rgba(234,179,8,0.25)':f.hl?'1px solid rgba(168,85,247,0.2)':'1px solid rgba(255,255,255,0.05)';
+return(
+<div style={{background:bg,border:border,borderRadius:'8px',padding:'12px 14px'}}>
 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'6px',flexWrap:'wrap',gap:'6px'}}>
 <div style={{display:'flex',alignItems:'center',gap:'6px',flexWrap:'wrap'}}>
 <span style={{fontSize:'13px',fontWeight:600,color:'#e4e4e7'}}>{f.ui}</span>
 {f.req&&<span style={{fontSize:'8px',fontWeight:700,color:'#ef4444',background:'rgba(239,68,68,0.1)',padding:'2px 5px',borderRadius:'3px'}}>REQUIS</span>}
 {f.dd&&<span style={{fontSize:'8px',fontWeight:700,color:'#a855f7',background:'rgba(168,85,247,0.1)',padding:'2px 5px',borderRadius:'3px'}}>DROPDOWN</span>}
+{f.fix&&<span style={{fontSize:'8px',fontWeight:700,color:'#10b981',background:'rgba(16,185,129,0.1)',padding:'2px 5px',borderRadius:'3px'}}>TESTÉ EU</span>}
+{f.warn&&<span style={{fontSize:'8px',fontWeight:700,color:'#eab308',background:'rgba(234,179,8,0.1)',padding:'2px 5px',borderRadius:'3px'}}>IGNORÉ EU</span>}
 </div>
 <span style={{fontSize:'10px',color:'#444',fontFamily:'monospace'}}>{f.type}</span>
 </div>
@@ -212,12 +221,12 @@ function FieldRow({f}){return(
 <div style={{fontSize:'12px',color:'#999',fontFamily:'monospace',wordBreak:'break-all'}}>{f.uiVal||'—'}</div>
 </div>
 <span style={{color:'#f59e0b',textAlign:'center'}}>→</span>
-<div style={{background:'rgba(245,158,11,0.03)',border:'1px solid rgba(245,158,11,0.08)',borderRadius:'5px',padding:'6px 10px'}}>
-<div style={{fontSize:'8px',color:'#f59e0b',textTransform:'uppercase',letterSpacing:'0.8px',marginBottom:'2px'}}>{f.api}</div>
+<div style={{background:f.fix?'rgba(16,185,129,0.04)':'rgba(245,158,11,0.03)',border:f.fix?'1px solid rgba(16,185,129,0.12)':'1px solid rgba(245,158,11,0.08)',borderRadius:'5px',padding:'6px 10px'}}>
+<div style={{fontSize:'8px',color:f.fix?'#10b981':'#f59e0b',textTransform:'uppercase',letterSpacing:'0.8px',marginBottom:'2px'}}>{f.api}</div>
 <div style={{fontSize:'12px',color:'#fafafa',fontFamily:'monospace',fontWeight:500,wordBreak:'break-all'}}>{f.val}</div>
 </div>
 </div>
-{f.note&&<p style={{margin:0,fontSize:'11px',color:'#666',lineHeight:1.4}}>{f.note}</p>}
+{f.note&&<p style={{margin:0,fontSize:'11px',color:f.fix?'#6ee7b7':f.warn?'#fbbf24':'#666',lineHeight:1.4}}>{f.note}</p>}
 </div>
 )}
 
@@ -233,18 +242,32 @@ return(
 <div style={{minHeight:'100vh',background:'#09090b',color:'#fafafa',fontFamily:"'Inter',-apple-system,sans-serif"}}>
 <div style={{background:'linear-gradient(135deg,#18181b 0%,#1a1a2e 50%,#16213e 100%)',borderBottom:'1px solid rgba(255,255,255,0.05)',padding:'24px 20px'}}>
 <div style={{maxWidth:'920px',margin:'0 auto'}}>
-<div style={{display:'flex',alignItems:'center',gap:'10px',marginBottom:'6px'}}>
+<div style={{display:'flex',alignItems:'center',gap:'10px',marginBottom:'6px',flexWrap:'wrap'}}>
 <span style={{fontSize:'10px',fontWeight:600,color:'#f59e0b',background:'rgba(245,158,11,0.1)',padding:'2px 8px',borderRadius:'3px',textTransform:'uppercase',letterSpacing:'0.5px'}}>Zoho Books/Inventory API</span>
 <span style={{fontSize:'10px',color:'#555'}}>•</span>
 <span style={{fontSize:'10px',color:'#555',fontFamily:'monospace'}}>Org: {ORG}</span>
 <span style={{fontSize:'10px',color:'#555'}}>•</span>
 <span style={{fontSize:'10px',color:'#555',fontFamily:'monospace'}}>.eu</span>
+<span style={{fontSize:'10px',color:'#555'}}>•</span>
+<span style={{fontSize:'10px',color:'#10b981',fontFamily:'monospace'}}>v3 testé</span>
 </div>
 <h1 style={{margin:'0 0 4px',fontSize:'22px',fontWeight:700,letterSpacing:'-0.5px'}}>Zoho API Field Mapper</h1>
 <p style={{margin:0,fontSize:'13px',color:'#666'}}>Mapping complet UI → API : Création Client & Commande Client</p>
 </div>
 </div>
 <div style={{maxWidth:'920px',margin:'0 auto',padding:'20px'}}>
+
+{/* Test results banner */}
+<div style={{marginBottom:'16px',padding:'12px 16px',background:'rgba(16,185,129,0.05)',border:'1px solid rgba(16,185,129,0.15)',borderRadius:'8px'}}>
+<div style={{fontSize:'12px',color:'#6ee7b7',fontWeight:600,marginBottom:'4px'}}>🧪 Résultats tests API du 06/03/2026 (Org EU)</div>
+<div style={{fontSize:'11px',color:'#888',lineHeight:1.6}}>
+<span style={{color:'#10b981'}}>✅</span> <code style={{color:'#6ee7b7',fontSize:'11px'}}>tax_reg_label: "TAX"</code> remplit le dropdown UI <span style={{color:'#555'}}>|</span>{' '}
+<span style={{color:'#10b981'}}>✅</span> <code style={{color:'#6ee7b7',fontSize:'11px'}}>tax_reg_no</code> stocke le VAT number <span style={{color:'#555'}}>|</span>{' '}
+<span style={{color:'#ef4444'}}>❌</span> <code style={{color:'#fca5a5',fontSize:'11px'}}>tax_id_type</code> erreur code 2 sur .eu <span style={{color:'#555'}}>|</span>{' '}
+<span style={{color:'#eab308'}}>⚠️</span> <code style={{color:'#fbbf24',fontSize:'11px'}}>tax_treatment</code> ignoré sur .eu
+</div>
+</div>
+
 <div style={{display:'flex',gap:'8px',marginBottom:'16px'}}>
 {[{id:"contact",label:"👤 Création Client",count:contactFields.reduce((a,s)=>a+s.fields.length,0)},{id:"salesorder",label:"🛒 Commande Client",count:salesOrderFields.reduce((a,s)=>a+s.fields.length,0)}].map(t=>(
 <button key={t.id} onClick={()=>{setTab(t.id);setSec(0);setShowP(false)}} style={{flex:1,background:tab===t.id?'rgba(245,158,11,0.08)':'rgba(255,255,255,0.03)',border:tab===t.id?'1px solid rgba(245,158,11,0.3)':'1px solid rgba(255,255,255,0.06)',color:tab===t.id?'#f59e0b':'#888',padding:'12px',borderRadius:'8px',cursor:'pointer',fontSize:'14px',fontWeight:600}}>{t.label} <span style={{fontSize:'11px',opacity:0.6}}>({t.count})</span></button>
@@ -272,13 +295,13 @@ return(
 {data[sec].fields.map((f,i)=><FieldRow key={i} f={f}/>)}
 </div>
 <div style={{marginTop:'28px',padding:'16px',background:'#111',border:'1px solid rgba(255,255,255,0.05)',borderRadius:'10px'}}>
-<h3 style={{margin:'0 0 8px',fontSize:'13px',fontWeight:600,color:'#e4e4e7'}}>💡 Résumé</h3>
+<h3 style={{margin:'0 0 8px',fontSize:'13px',fontWeight:600,color:'#e4e4e7'}}>💡 Résumé Edition EU (.eu)</h3>
 <div style={{fontSize:'11px',color:'#888',lineHeight:1.7}}>
 <p style={{margin:'0 0 6px'}}><strong style={{color:'#f59e0b'}}>Base URL:</strong> <code style={{fontFamily:'monospace',color:'#ccc',background:'rgba(255,255,255,0.04)',padding:'1px 4px',borderRadius:'2px'}}>{BASE}/books/v3/</code></p>
-<p style={{margin:'0 0 6px'}}><strong style={{color:'#f59e0b'}}>tax_id</strong> = ID interne Zoho (pas un %), <strong style={{color:'#f59e0b'}}>tax_id_type</strong> + <strong style={{color:'#f59e0b'}}>tax_id_value</strong> = le dropdown "N° identification fiscale"</p>
+<p style={{margin:'0 0 6px'}}><strong style={{color:'#10b981'}}>Dropdown TAX:</strong> <code style={{color:'#6ee7b7'}}>tax_reg_label: "TAX"</code> + <code style={{color:'#6ee7b7'}}>tax_reg_no: "ATU..."</code> (testé, confirmé)</p>
+<p style={{margin:'0 0 6px'}}><strong style={{color:'#ef4444'}}>Ne PAS envoyer:</strong> <code style={{color:'#fca5a5'}}>tax_id_type</code> (erreur 2), <code style={{color:'#fca5a5'}}>tax_id_value</code> (ignoré), <code style={{color:'#fca5a5'}}>tax_treatment</code> (ignoré)</p>
 <p style={{margin:'0 0 6px'}}><strong style={{color:'#f59e0b'}}>payment_terms</strong> = jours (0=A la commande, 30=Net 30, -2=fin de mois)</p>
-<p style={{margin:'0 0 6px'}}><strong style={{color:'#f59e0b'}}>IDs réels:</strong> TVA 0% = 441540000000359714 | EUR = 441540000000000071</p>
-<p style={{margin:0}}><strong style={{color:'#f59e0b'}}>Dropdowns</strong> = soit un ID Zoho, soit une valeur enum (salutation, language_code, tax_treatment)</p>
+<p style={{margin:0}}><strong style={{color:'#f59e0b'}}>IDs réels:</strong> TVA 0% = 441540000000359714 | EUR = 441540000000000071</p>
 </div>
 </div>
 </div>
